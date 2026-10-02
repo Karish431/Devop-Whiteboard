@@ -18,8 +18,11 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Run test suite
-        run: python -m unittest test_session_export.py -v
+        run: python -m unittest test_session_export -v
 
   promote-to-test:
     name: Run Export Against Test Environment

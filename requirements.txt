@@ -1,0 +1,2 @@
+# No third-party packages are required. The application uses the Python standard library only.
+# Tested with Python 3.11 or later.

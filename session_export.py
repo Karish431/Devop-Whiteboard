@@ -1,19 +1,14 @@
 """
-Session Summary Export Feature
-Lucid Whiteboard Enhancement - Team Dev Op Project
-
-Pulls all comments and tasks from a Lucid board and exports them into a
-single formatted summary document. Built to run against either the Dev
-or Test environment, controlled by the --env flag, so the same code
-path can be promoted from Dev to Test without changes.
-
-When run without a live Lucid API key, the module falls back to a mock
-data source so the feature can be demonstrated and tested end to end.
+Session Summary Export Feature (Version 2)
+Lucid Sharing Transparency Assistant - Team Dev Op Project
 """
 
 import argparse
 import os
+import sys
 from datetime import datetime, timezone
+
+API_KEY_ENV_VAR = "LUCID_API_KEY"
 
 
 ENVIRONMENTS = {
@@ -37,17 +32,30 @@ def get_environment_config(env_name):
     return ENVIRONMENTS[env_name]
 
 
+def get_api_key(cli_value=None):
+    """
+    Return the Lucid API key, or None if none is set.
+
+    The environment variable is the preferred source because a key passed on
+    the command line can show up in shell history and process listings.
+    """
+    return os.environ.get(API_KEY_ENV_VAR) or cli_value or None
+
+
 def fetch_board_data(board_id, env_name="test", api_key=None):
     """
     Retrieve comments and tasks for a given Lucid board.
 
-    If api_key is provided, this would call the real Lucid API at the
-    environment's base_url. Without a key, mock data is returned so the
-    feature can be exercised in the Test stage without live credentials.
+    If api_key is provided, this would call the real Lucid API.
+    Without a key, mock data is returned so the feature can be
+    tested without live credentials.
     """
+    if not board_id or not str(board_id).strip():
+        raise ValueError("A board ID is required.")
+
     if api_key:
         raise NotImplementedError(
-            "Live Lucid API integration pending credential setup for this environment."
+            "Live Lucid API integration pending credential setup."
         )
 
     return _mock_board_data(board_id)
@@ -93,7 +101,7 @@ def _mock_board_data(board_id):
             },
             {
                 "title": "Promote export feature to Test",
-                "assignee": "Steve",
+                "assignee": "Christian",
                 "status": "In Progress",
                 "due": "2026-09-27",
             },
@@ -107,7 +115,7 @@ def format_summary(board_data, env_name="test"):
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     lines = []
-    lines.append(f"# Session Summary Export")
+    lines.append("# Session Summary Export")
     lines.append("")
     lines.append(f"**Board:** {board_data['board_title']} (ID: {board_data['board_id']})")
     lines.append(f"**Environment:** {config['label']}")
@@ -131,7 +139,7 @@ def format_summary(board_data, env_name="test"):
     else:
         for t in board_data["tasks"]:
             lines.append(
-                f"- **{t['title']}** — assigned to {t['assignee']}, "
+                f"- **{t['title']}** - assigned to {t['assignee']}, "
                 f"status: {t['status']}, due: {t['due']}"
             )
     lines.append("")
@@ -154,7 +162,7 @@ def export_to_file(summary_text, output_path):
     return output_path
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Export a Lucid board's comments and tasks into one summary."
     )
@@ -162,19 +170,33 @@ def main():
     parser.add_argument(
         "--env", default="test", choices=list(ENVIRONMENTS), help="Target environment"
     )
-    parser.add_argument("--api-key", default=None, help="Lucid API key (optional)")
+    parser.add_argument(
+        "--api-key",
+        default=None,
+        help=f"Lucid API key (optional). Prefer the {API_KEY_ENV_VAR} environment variable.",
+    )
     parser.add_argument(
         "--output", default="output/session_summary.md", help="Output file path"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    data = fetch_board_data(args.board_id, env_name=args.env, api_key=args.api_key)
-    summary = format_summary(data, env_name=args.env)
-    path = export_to_file(summary, args.output)
+    try:
+        data = fetch_board_data(
+            args.board_id, env_name=args.env, api_key=get_api_key(args.api_key)
+        )
+        summary = format_summary(data, env_name=args.env)
+        path = export_to_file(summary, args.output)
+    except NotImplementedError as err:
+        print(f"Error: {err}", file=sys.stderr)
+        return 2
+    except (ValueError, OSError) as err:
+        print(f"Error: {err}", file=sys.stderr)
+        return 1
 
     print(f"Summary exported to {path}")
     print(f"Environment: {ENVIRONMENTS[args.env]['label']}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
